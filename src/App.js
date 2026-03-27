@@ -1,4 +1,3 @@
-import logo from './logo.svg';
 import './App.css';
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
@@ -32,12 +31,22 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 /* ══════════════════════════════════════
    STORAGE (window.storage API)
 ══════════════════════════════════════ */
-async function storageLoad(key) {
-  try { const r = await window.storage.get(key); return r ? JSON.parse(r.value) : null; }
-  catch { return null; }
+function storageLoad(key) {
+  try {
+    const r = localStorage.getItem(key);
+    return r ? JSON.parse(r) : null;
+  } catch (e) {
+    console.error("Erro ao carregar dados:", e);
+    return null;
+  }
 }
-async function storageSave(key, val) {
-  try { await window.storage.set(key, JSON.stringify(val)); } catch {}
+
+function storageSave(key, val) {
+  try {
+    localStorage.setItem(key, JSON.stringify(val));
+  } catch (e) {
+    console.error("Erro ao salvar dados:", e);
+  }
 }
 
 /* ══════════════════════════════════════
@@ -1031,17 +1040,29 @@ export default function App() {
   const [tab,     setTab]     = useState("billing");
   const [ready,   setReady]   = useState(false);
 
+  // Carregamento inicial
   useEffect(() => {
-    Promise.all([storageLoad(SK.C), storageLoad(SK.S)]).then(([c, s]) => {
-      if (c) setClients(c);
-      if (s) setSales(s);
-      setReady(true);
-    });
+    const savedClients = storageLoad(SK.C);
+    const savedSales   = storageLoad(SK.S);
+    
+    if (savedClients) setClients(savedClients);
+    if (savedSales)   setSales(savedSales);
+    
+    setReady(true);
   }, []);
 
-  const updateClients = useCallback(c => { setClients(c); storageSave(SK.C, c); }, []);
-  const updateSales   = useCallback(s => { setSales(s);   storageSave(SK.S, s); }, []);
+  // Funções de atualização que também salvam no cache
+  const updateClients = useCallback(c => { 
+    const newClients = typeof c === 'function' ? c(clients) : c;
+    setClients(newClients); 
+    storageSave(SK.C, newClients); 
+  }, [clients]);
 
+  const updateSales = useCallback(s => { 
+    const newSales = typeof s === 'function' ? s(sales) : s;
+    setSales(newSales);   
+    storageSave(SK.S, newSales); 
+  }, [sales]);
   const pendingCount = useMemo(() => {
     return new Set(sales.filter(s => !s.paid).map(s => s.clientId)).size;
   }, [sales]);
