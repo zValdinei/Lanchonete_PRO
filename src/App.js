@@ -353,7 +353,7 @@ function ClientSearch({ clients, selectedId, onSelect }) {
    BILLING TAB
 ══════════════════════════════════════ */
 function PaymentModal({ client, unpaidSales, onConfirm, onClose }) {
-  const total = unpaidSales.reduce((a, s) => a + s.total, 0);
+  const total = unpaidSales.reduce((a, s) => a + s.total - (s.partiallyPaid || 0), 0);
   const [amount, setAmount] = useState("");
 
   const handleConfirm = () => {
@@ -435,24 +435,31 @@ function BillingTab({ clients, sales, updateSales }) {
   const grandTotal = debtors.reduce((a, c) => a + c.debt, 0);
 
   const handleConfirm = (clientId, paidAmount) => {
-    let remaining = paidAmount;
-    const sorted = [...sales]
-      .filter(s => s.clientId === clientId && !s.paid)
-      .sort((a, b) => a.date.localeCompare(b.date));
+  let remaining = paidAmount;
+  const sorted = [...sales]
+    .filter(s => s.clientId === clientId && !s.paid)
+    .sort((a, b) => a.date.localeCompare(b.date));
 
-    const updated = sales.map(s => {
-      if (s.clientId !== clientId || s.paid) return s;
-      const match = sorted.find(u => u.id === s.id);
-      if (!match) return s;
-      if (remaining >= s.total) {
-        remaining -= s.total;
-        return { ...s, paid: true, paidAt: todayISO() };
-      }
-      return s;
-    });
-    updateSales(updated);
-    setPayingId(null);
-  };
+  const updated = sales.map(s => {
+    if (s.clientId !== clientId || s.paid) return s;
+    const match = sorted.find(u => u.id === s.id);
+    if (!match || remaining <= 0) return s;
+
+    const effectiveTotal = s.total - (s.partiallyPaid || 0);
+
+    if (remaining >= effectiveTotal) {
+      remaining -= effectiveTotal;
+      return { ...s, paid: true, paidAt: todayISO() };
+    } else {
+      const newPartial = (s.partiallyPaid || 0) + remaining;
+      remaining = 0;
+      return { ...s, partiallyPaid: newPartial };
+    }
+  });
+
+  updateSales(updated);
+  setPayingId(null);
+};
 
   const payingClient = clients.find(c => c.id === payingId);
   const payingSales  = payingId ? sales.filter(s => s.clientId === payingId && !s.paid) : [];
