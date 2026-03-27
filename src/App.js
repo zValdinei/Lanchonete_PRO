@@ -423,7 +423,7 @@ function BillingTab({ clients, sales, updateSales }) {
     const map = {};
     sales.filter(s => !s.paid).forEach(s => {
       if (!map[s.clientId]) map[s.clientId] = { total: 0, count: 0 };
-      map[s.clientId].total += s.total;
+      map[s.clientId].total += s.total - (s.partiallyPaid || 0);
       map[s.clientId].count += 1;
     });
     return clients
